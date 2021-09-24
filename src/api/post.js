@@ -6,63 +6,86 @@ const validator = require('validator');
 const { authUser} = require('../middleware/auth')
 
 router.post('/', authUser, async (req, res) => {
-    const data = _.pick(req.body, ['title', 'content'])
-    data.user_id = req.user_id //from auth
-    if(validator.isEmpty(data.title, { ignore_whitespace: true })) return res.status(500).send({error : 'title required'})
-    if(validator.isEmpty(data.content, { ignore_whitespace: true })) return res.status(500).send({error : 'content required'})
-   
-    return await models.Post.create(
-        data
-    ).then((rslt) => {
-        if(rslt) return res.status(201).send()
-        throw new Error('Post not created')
-    }).catch((e) => {
+    let data
+
+    try {
+        data = _.pick(req.body, ['title', 'content'])
+        data.user_id = req.user_id //from auth
+
+        //Intentional or for error message on title or content
+        let missingData = _.isEmpty(data.title) ? getApiResponse(500, {error : 'title required'}) : _.isEmpty(data.content) ? getApiResponse(500, {error : 'content required'}) : ''
+
+        if(!_.isEmpty(missingData)) return res.send(missingData)
+
+        let postCreated = await models.Post.create(data)
+        console.log("Post Creation Successfull")
+
+        res.send(getApiResponse(200, postCreated))
+    } catch (e) {
+        console.log("Post Creation failed", e.message)
         err_log(req.method, req.url, e.message)
-        res.status(500).send()
-    })
+        res.send(getApiResponse(500,e.message));
+    }
 })
+
 
 router.get('/', authUser, async (req, res) => {
-    models.Post.findAll({
-        where : { user_id: req.user_id},
-    }).then((rslt) => {
-        if(rslt) return res.status(200).send(rslt)
-    }).catch((e) => {
+    let posts
+
+    try {
+        posts = await models.Post.findAll({
+            where: {user_id: req.user_id},
+        })
+
+        !_.isEmpty(posts) ? res.send(getApiResponse(200,posts)) : res.send(getApiResponse(200,'No Posts Created'))
+    } catch(e) {
         err_log(req.method, req.url, e.message)
-        res.status(500).send();
-    });
+        res.send(getApiResponse(500,e.message));
+    }
 })
 
-router.put('/:id', authUser, (req, res) => {
-    const data = _.pick(req.body, ['title', 'content'])
-    data.user_id = req.user_id //from auth
-    if(validator.isEmpty(data.title, { ignore_whitespace: true })) return res.status(500).send({error : 'title required'})
-    if(data.content!= undefined && validator.isEmpty(data.content, { ignore_whitespace: true })) return res.status(500).send({error : 'content required'})
-    models.Post.update(
-         data,
-        { where : { id : req.params.id, user_id: data.user_id}}
-    ).then((rslt) => {
-        if(rslt && rslt[0] === 1) return res.status(200).send(rslt);
-        return res.status(400).send();
-    }).catch((e) => {
+router.put('/:id', authUser, async (req, res) => {
+    let data
+
+    try {
+        data = _.pick(req.body, ['title', 'content'])
+        data.user_id = req.user_id //from auth
+
+        //Intentional or for error message on title or content
+        let missingData = _.isEmpty(data.title) ? getApiResponse(500, {error : 'title required'}) : _.isEmpty(data.content) ? getApiResponse(500, {error : 'content required'}) : ''
+
+        if(!_.isEmpty(missingData)) return res.send(missingData)
+
+        let postUpdated = await models.Post.update(data,{ where : { id : req.params.id, user_id: data.user_id}})
+        !_.isEmpty(postUpdated) && postUpdated[0] === 1 ? res.send(getApiResponse(200, "Post Updated ")) : res.send(getApiResponse(400, {error: 'post id not found'}))
+
+    } catch (e) {
+        console.log("Post Update failed", e.message)
         err_log(req.method, req.url, e.message)
-        res.status(500).send();
-    });
+        res.send(getApiResponse(500,e.message));
+    }
 })
 
-router.delete('/:id', authUser, (req, res) => {
-    models.Post.destroy(
-        { 
-            where : { id : req.params.id, user_id: req.user_id }
-        }
-    ).then((rslt) => {
-        if(rslt && rslt === 1) return res.status(200).send();
-        return res.status(400).send();
-    }).catch((e) => {
+router.delete('/:id', authUser, async (req, res) => {
+   try {
+    let postDeleted = await models.Post.destroy({where : { id : req.params.id, user_id: req.user_id }});
+    console.log("Post Deleted Successfully", postDeleted)
+    postDeleted === 1 ? res.send(getApiResponse(200, "Post Deleted ")) : res.send(getApiResponse(400, {error: 'post id not found'}))
+   } catch(e) {
         console.log(e)
         err_log(req.method, req.url, e.message)
-        res.status(500).send();
-    });
+        res.send(getApiResponse(500,e.message));
+   }
 })
+
+const getApiResponse = (statusCode, responseBody) => {
+    return {
+        statusCode: statusCode,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(responseBody)
+    };
+}
 
 module.exports = router
