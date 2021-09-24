@@ -2,6 +2,7 @@ const router = require('express').Router()
 const models = require('../../models')
 const err_log = require('../utility/error.js')
 const _ = require('lodash')
+const getApiResponse = require('../utility/apiResponse')
 const validator = require('validator');
 const { authUser} = require('../middleware/auth')
 
@@ -15,7 +16,7 @@ router.post('/', authUser, async (req, res) => {
         //Intentional or for error message on title or content
         let missingData = _.isEmpty(data.title) ? getApiResponse(500, {error : 'title required'}) : _.isEmpty(data.content) ? getApiResponse(500, {error : 'content required'}) : ''
 
-        if(!_.isEmpty(missingData)) return res.send(missingData)
+        if(!_.isEmpty(missingData)) return res.status(500).send(missingData)
 
         let postCreated = await models.Post.create(data)
         console.log("Post Creation Successfull")
@@ -24,7 +25,7 @@ router.post('/', authUser, async (req, res) => {
     } catch (e) {
         console.log("Post Creation failed", e.message)
         err_log(req.method, req.url, e.message)
-        res.send(getApiResponse(500,e.message));
+        res.status(500).send(getApiResponse(500,e.message));
     }
 })
 
@@ -40,7 +41,7 @@ router.get('/', authUser, async (req, res) => {
         !_.isEmpty(posts) ? res.send(getApiResponse(200,posts)) : res.send(getApiResponse(200,'No Posts Created'))
     } catch(e) {
         err_log(req.method, req.url, e.message)
-        res.send(getApiResponse(500,e.message));
+        res.status(500).send(getApiResponse(500,e.message));
     }
 })
 
@@ -62,7 +63,7 @@ router.put('/:id', authUser, async (req, res) => {
     } catch (e) {
         console.log("Post Update failed", e.message)
         err_log(req.method, req.url, e.message)
-        res.send(getApiResponse(500,e.message));
+        res.status(500).send(getApiResponse(500,e.message));
     }
 })
 
@@ -74,18 +75,8 @@ router.delete('/:id', authUser, async (req, res) => {
    } catch(e) {
         console.log(e)
         err_log(req.method, req.url, e.message)
-        res.send(getApiResponse(500,e.message));
+        res.status(500).send(getApiResponse(500,e.message));
    }
 })
-
-const getApiResponse = (statusCode, responseBody) => {
-    return {
-        statusCode: statusCode,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(responseBody)
-    };
-}
 
 module.exports = router

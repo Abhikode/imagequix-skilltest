@@ -2,26 +2,33 @@ const router = require('express').Router()
 const models = require('../../models')
 const err_log = require('../utility/error.js')
 const _ = require('lodash')
+const getApiResponse = require('../utility/apiResponse')
 const { authUser} = require('../middleware/auth')
-const validator = require('validator');
 const sequelize = models.sequelize;
 
 router.post('/:post_id', authUser, async (req, res) => {
-    const data = _.pick(req.body, ['content'])
-    data.user_id = req.user_id //from auth
-    data.post_id = req.params.post_id
-    if(validator.isEmpty(data.content, { ignore_whitespace: true })) return res.status(500).send({error : 'title required'})
-    if(data.post_id===null) return res.status(500).send({error : 'post id required'})
-    
-    return await models.Comment.create(
-        data
-    ).then((rslt) => {
-        if(rslt) return res.status(201).send()
-        throw new Error('Comment not created')
-    }).catch((e) => {
+    let data
+
+    try {
+        data = _.pick(req.body, ['content'])
+        data.user_id = req.user_id //from auth
+        data.post_id = req.params.post_id
+
+        let missingData = _.isEmpty(data.content) ? getApiResponse(500, {error : 'content required'}) : data.post_id===null ? getApiResponse(500, {error : 'post Id required'}) : ''
+        if(!_.isEmpty(missingData)) return res.status(500).send(missingData)
+
+        let createdComment = await models.Comment.create(data)
+        if(createdComment) {
+            console.log("Comment Creation Successfully")
+            res.status(200).send(getApiResponse(200, createdComment))
+        }
+
+        res.send(getApiResponse())
+    } catch(e) {
+        console.log("Comment Creation failed", e.message)
         err_log(req.method, req.url, e.message)
-        res.status(500).send({error : e.message})
-    })
+        res.status(500).send(getApiResponse(500,e.message));
+    }
 })
 
 /*
